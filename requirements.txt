@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+scikit-learn
+nltk
+requests
+beautifulsoup4
+python-docx
+PyPDF2
+fpdf2
+wikipedia
