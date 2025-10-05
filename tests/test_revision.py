@@ -70,7 +70,7 @@ def test_bibliography_section_shows_concise_entries(monkeypatch):
     monkeypatch.setattr("app.llm_summarizer.LLMSummarizer.generate", fake_generate)
 
     def fake_external(self, theme, limit=3):
-        return [f"{theme} — Encyclopædia Universalis"]
+        return []
 
     monkeypatch.setattr(RevisionGenerator, "fetch_external_references", fake_external)
 
@@ -79,7 +79,7 @@ def test_bibliography_section_shows_concise_entries(monkeypatch):
             "title": "Document 1",
             "text_content": (
                 "Dupont J. (2020). Analyse du thème : perspective historique. "
-                "Disponible sur https://exemple.org."
+                "Cette étude montre que le corpus éclaire la question sous différents angles."
             ),
         }
     ]
@@ -90,13 +90,42 @@ def test_bibliography_section_shows_concise_entries(monkeypatch):
     biblio_section = markdown.split("## 3. Références bibliographiques\n", 1)[1].split("\n## 4.", 1)[0]
     lines = [line for line in biblio_section.strip().splitlines() if line]
 
-    assert lines
-    for line in lines:
-        if line.startswith("- Aucune référence disponible"):
-            assert len(lines) == 1
-        else:
-            assert line.startswith("- ")
-            assert len(line) <= 120
+    assert lines == ["- **Dupont J. (2020). Analyse du thème : perspective historique.** (Corpus)"]
+    assert "Cette étude" not in lines[0]
+
+
+def test_bibliography_section_shows_placeholder_when_no_references(monkeypatch):
+    generator = RevisionGenerator()
+
+    def fake_generate(self, theme, doc_snippets, **kwargs):
+        return [
+            "- Point clé 1 (Source A, 2023)",
+            "- Point clé 2 illustré par un exemple institutionnel",
+            "- Point clé 3 reliant deux documents",
+            "- Point clé 4 ouvrant sur un débat académique",
+        ]
+
+    monkeypatch.setattr("app.llm_summarizer.LLMSummarizer.generate", fake_generate)
+
+    def fake_external(self, theme, limit=3):
+        return []
+
+    monkeypatch.setattr(RevisionGenerator, "fetch_external_references", fake_external)
+
+    documents = [
+        {
+            "title": "Document 1",
+            "text_content": "Ce document ne contient pas de référence bibliographique explicite.",
+        }
+    ]
+
+    sheet = generator.create_revision_sheet("Thème", documents)
+
+    markdown = sheet.to_markdown()
+    biblio_section = markdown.split("## 3. Références bibliographiques\n", 1)[1].split("\n## 4.", 1)[0]
+    lines = [line for line in biblio_section.strip().splitlines() if line]
+
+    assert lines == ["- Aucune référence disponible"]
 
 
 def test_fallback_bullets_are_full_sentences(monkeypatch):

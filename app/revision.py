@@ -230,30 +230,49 @@ class RevisionGenerator:
 
     def extract_bibliographic_references(self, docs: Sequence[dict]) -> List[str]:
         references: List[str] = []
+
+        year_pattern = re.compile(r"(19|20)\d{2}")
+        doi_pattern = re.compile(
+            r"(?:doi[:\s]?|https?://doi\.org/)(10\.\d{4,9}/[-._;()/:A-Z0-9]+)",
+            re.IGNORECASE,
+        )
+
         for doc in docs:
             lines = re.split(r"[\n\r]", doc["text_content"])
-            for line in lines:
-                cleaned = line.strip()
+            for raw_line in lines:
+                cleaned = raw_line.strip()
                 if len(cleaned) < 40:
                     continue
-                if re.search(r"(19|20)\d{2}", cleaned) or "doi" in cleaned.lower():
-                    sentences = re.split(r"(?<=[.!?])\s+", cleaned)
-                    snippet_parts: List[str] = []
-                    for sentence in sentences:
-                        if not sentence:
-                            continue
-                        snippet_parts.append(sentence.strip())
-                        snippet = " ".join(snippet_parts).strip()
-                        if (
-                            re.search(r"(19|20)\d{2}", snippet)
-                            or "doi" in snippet.lower()
-                            or len(snippet_parts) > 1
-                        ):
-                            break
-                    snippet = " ".join(snippet_parts).strip()
-                    if len(snippet) > 160:
-                        snippet = snippet[:160].rsplit(" ", 1)[0] + "…"
+
+                doi_match = doi_pattern.search(cleaned)
+                year_match = year_pattern.search(cleaned)
+                anchor_match = doi_match or year_match
+                if not anchor_match:
+                    continue
+
+                anchor_end = anchor_match.end()
+                tail = cleaned[anchor_end:]
+
+                end_index = None
+                for punctuation in re.finditer(r"[.!?]", tail):
+                    segment = tail[: punctuation.end()]
+                    if re.search(r"[A-Za-zÀ-ÖØ-öø-ÿ]", segment):
+                        end_index = anchor_end + punctuation.end()
+                        break
+
+                if end_index is None:
+                    snippet = cleaned
+                else:
+                    snippet = cleaned[:end_index]
+
+                snippet = re.sub(r"\s+", " ", snippet).strip()
+                snippet = snippet.rstrip(",;: ")
+                if snippet and snippet[-1] not in ".!?":
+                    snippet += "."
+
+                if snippet:
                     references.append(snippet)
+
         unique_refs = list(dict.fromkeys(references))
         return unique_refs[:6]
 
