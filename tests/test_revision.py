@@ -97,3 +97,46 @@ def test_bibliography_section_shows_concise_entries(monkeypatch):
         else:
             assert line.startswith("- ")
             assert len(line) <= 120
+
+
+def test_fallback_bullets_are_full_sentences(monkeypatch):
+    generator = RevisionGenerator()
+
+    def fake_generate(self, theme, doc_snippets, **kwargs):
+        return []
+
+    monkeypatch.setattr("app.llm_summarizer.LLMSummarizer.generate", fake_generate)
+
+    long_sentence = (
+        "Cette phrase introductive détaille de manière exhaustive le contexte historique et "
+        "politique du sujet abordé en insistant sur les principaux acteurs institutionnels impliqués."
+    )
+    summary_text = " ".join(
+        [
+            long_sentence,
+            "Elle met ensuite en avant les dynamiques économiques qui structurent le phénomène étudié en explicitant les dépendances régionales.",
+            "Une troisième phrase souligne les controverses académiques majeures en rappelant les principales publications fondatrices sur ce thème.",
+            "Enfin, une dernière phrase insiste sur les perspectives d'évolution et les points de vigilance pour les décideurs publics.",
+            "Un complément rappelle l'importance de mobiliser des sources variées pour approfondir l'analyse comparative des cas étudiés.",
+        ]
+    )
+
+    def fake_summarise_documents(contents, max_sentences=12):
+        return summary_text
+
+    monkeypatch.setattr("app.summarization.summarise_documents", fake_summarise_documents)
+
+    documents = [
+        {
+            "title": "Document",
+            "text_content": "Contenu suffisant pour déclencher la synthèse fallback.",
+        }
+    ]
+
+    synthesis = generator.build_synthesis("Sujet d'étude", documents)
+
+    assert 4 <= len(synthesis) <= 6
+    for bullet in synthesis:
+        assert bullet.startswith("- ")
+        assert not bullet.endswith("…")
+        assert bullet.rstrip().endswith((".", "!", "?"))

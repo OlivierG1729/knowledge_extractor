@@ -108,15 +108,31 @@ class RevisionGenerator:
                     expanded.append(segment)
             cleaned_segments = expanded
 
-        def truncate(text: str, limit: int = 160) -> str:
+        def preserve_sentence_boundary(text: str, limit: int = 160) -> str:
             if len(text) <= limit:
                 return text
-            truncated = text[:limit].rsplit(" ", 1)[0]
-            if not truncated:
-                truncated = text[:limit]
-            return f"{truncated}…"
+            last_boundary = None
+            for match in re.finditer(r"(?<=[.!?])\s", text):
+                if match.start() <= limit:
+                    last_boundary = match.start()
+                else:
+                    break
+            if last_boundary is not None:
+                return text[:last_boundary].strip()
+            return text
 
-        return [f"- {truncate(segment.rstrip('.;:'))}" for segment in cleaned_segments[:6]]
+        bullets: List[str] = []
+        for segment in cleaned_segments:
+            sentence = preserve_sentence_boundary(segment)
+            if not sentence:
+                continue
+            if not sentence.endswith(('.', '!', '?')):
+                sentence = sentence.rstrip() + '.'
+            bullets.append(f"- {sentence}")
+            if len(bullets) == 6:
+                break
+
+        return bullets[:6]
 
     def extract_bibliographic_references(self, docs: Sequence[dict]) -> List[str]:
         references: List[str] = []
