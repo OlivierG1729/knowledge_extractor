@@ -95,7 +95,7 @@ class LLMSummarizer:
             prompt,
             return_tensors="pt",
             truncation=True,
-            max_length=max(self.max_input_tokens - max_new_tokens, 512),
+            max_length=max(self.max_input_tokens - max_new_tokens, 1024),
         )
 
         try:
@@ -147,8 +147,9 @@ class LLMSummarizer:
         instructions = (
             "Tu es un assistant pédagogique francophone chargé de synthétiser un corpus. "
             "Produis une synthèse analytique en français sous forme de 4 à 6 puces. "
-            "Chaque puce doit commencer par un tiret, contenir une idée clé en une ou deux phrases "
+            "Chaque puce doit commencer par un tiret, contenir une idée clé en une ou deux phrases. "
             "et faire implicitement référence aux sources (auteur, institution, année) lorsque l'information est disponible. "
+            "Chaque phrase doit être complète et terminer par un point."
             "N'invente aucune information et reste fidèle au contenu fourni."
         )
         suffix = (
@@ -157,6 +158,7 @@ class LLMSummarizer:
             "- Pas d'introduction ni de conclusion.\n"
             "- Pas de listes imbriquées.\n"
             "- Chaque puce doit rester concise (deux phrases au plus).\n"
+            "- Chaque phrase écrite dans une puce doit être complète et se terminer par un point.\n"
             "- Mention implicite des sources lorsqu'elles apparaissent dans les extraits.\n"
             "\nSynthèse attendue :"
         )
