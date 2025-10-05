@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional
+
+import streamlit as st
 
 from . import db
 from .pdf_utils import save_revision_pdf, save_summary_pdf
 from .reports import update_revision_report, update_summary_report
 from .revision import RevisionGenerator
 from .summarization import summarise_text
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class KnowledgeService:
@@ -47,7 +53,33 @@ class KnowledgeService:
         summary = summarise_text(text, max_sentences=max_sentences)
         if not summary:
             summary = text[:2000]
-        pdf_path = save_summary_pdf(self.base_dir, document["title"], summary)
+        previous_pdf_path: Optional[Path] = None
+        for entry in db.fetch_summaries(self.base_dir):
+            if entry["document_id"] == document_id:
+                previous_pdf_path = Path(entry["pdf_path"])
+                break
+
+        safe_name = document["title"].replace("/", "-").replace(" ", "_")
+        expected_path = self.base_dir / "data" / "summaries" / f"{safe_name}.pdf"
+
+        pdf_path = save_summary_pdf(
+            self.base_dir,
+            document["title"],
+            summary,
+            previous_path=previous_pdf_path,
+        )
+        if pdf_path == expected_path:
+            if previous_pdf_path and previous_pdf_path != pdf_path:
+                self._remove_previous_file(previous_pdf_path)
+        else:
+            st.warning(
+                (
+                    "Le fichier PDF de résumé semble encore ouvert "
+                    f"({expected_path}). "
+                    "Fermez-le puis relancez l'export. Nouveau fichier : "
+                    f"{pdf_path}"
+                )
+            )
         db.upsert_summary(self.base_dir, document_id=document_id, summary=summary, pdf_path=str(pdf_path))
         self.refresh_summary_report()
         return summary
@@ -77,7 +109,33 @@ class KnowledgeService:
             return None
         sheet = self.revision_generator.create_revision_sheet(theme, documents)
         markdown = sheet.to_markdown()
-        pdf_path = save_revision_pdf(self.base_dir, theme, markdown)
+        previous_pdf_path: Optional[Path] = None
+        for entry in db.fetch_revision_sheets(self.base_dir):
+            if entry["theme"] == theme:
+                previous_pdf_path = Path(entry["pdf_path"])
+                break
+
+        safe_name = theme.replace("/", "-").replace(" ", "_")
+        expected_path = self.base_dir / "data" / "revision_sheets" / f"{safe_name}.pdf"
+
+        pdf_path = save_revision_pdf(
+            self.base_dir,
+            theme,
+            markdown,
+            previous_path=previous_pdf_path,
+        )
+        if pdf_path == expected_path:
+            if previous_pdf_path and previous_pdf_path != pdf_path:
+                self._remove_previous_file(previous_pdf_path)
+        else:
+            st.warning(
+                (
+                    "Le fichier PDF de fiche de révision semble encore ouvert "
+                    f"({expected_path}). "
+                    "Fermez-le puis relancez l'export. Nouveau fichier : "
+                    f"{pdf_path}"
+                )
+            )
         db.upsert_revision_sheet(
             self.base_dir,
             theme=theme,
@@ -108,4 +166,11 @@ class KnowledgeService:
                 }
             )
         update_revision_report(self.base_dir, entries)
+
+    def _remove_previous_file(self, previous_path: Path) -> None:
+        if previous_path.exists():
+            try:
+                previous_path.unlink()
+            except OSError as error:  # pragma: no cover - filesystem dependent
+                LOGGER.debug("Impossible de supprimer l'ancien PDF %s : %s", previous_path, error)
 
