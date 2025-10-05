@@ -102,7 +102,23 @@ class RevisionGenerator:
                 if len(cleaned) < 40:
                     continue
                 if re.search(r"(19|20)\d{2}", cleaned) or "doi" in cleaned.lower():
-                    references.append(cleaned)
+                    sentences = re.split(r"(?<=[.!?])\s+", cleaned)
+                    snippet_parts: List[str] = []
+                    for sentence in sentences:
+                        if not sentence:
+                            continue
+                        snippet_parts.append(sentence.strip())
+                        snippet = " ".join(snippet_parts).strip()
+                        if (
+                            re.search(r"(19|20)\d{2}", snippet)
+                            or "doi" in snippet.lower()
+                            or len(snippet_parts) > 1
+                        ):
+                            break
+                    snippet = " ".join(snippet_parts).strip()
+                    if len(snippet) > 160:
+                        snippet = snippet[:160].rsplit(" ", 1)[0] + "…"
+                    references.append(snippet)
         unique_refs = list(dict.fromkeys(references))
         return unique_refs[:6]
 
@@ -121,12 +137,12 @@ class RevisionGenerator:
                     continue
             return external_refs
         except Exception:
-            templates = [
-                f"Exploration complémentaire : encyclopédie ou bases de données académiques sur '{theme}'.",
-                f"Articles de revues spécialisées consacrées à '{theme}'.",
-                f"Rapports institutionnels récents traitant de '{theme}'.",
+            minimal_fallbacks = [
+                f"{theme} — Encyclopædia Universalis",
+                f"{theme} — Cairn.info",
+                f"{theme} — OpenEdition Journals",
             ]
-            return templates[:limit]
+            return minimal_fallbacks[:limit]
 
     def format_bibliography(self, internal_refs: Sequence[str], external_refs: Sequence[str]) -> List[str]:
         bibliography: List[str] = []
