@@ -7,8 +7,12 @@ import re
 from dataclasses import dataclass
 from typing import List, Sequence
 
+import nltk
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
 
 from .llm_summarizer import LLMSummarizer
 
@@ -42,11 +46,101 @@ class RevisionSheet:
         return "\n".join(lines)
 
 
+FRENCH_FALLBACK_STOPWORDS = {
+    "au",
+    "aux",
+    "avec",
+    "ce",
+    "ces",
+    "cet",
+    "cette",
+    "dans",
+    "de",
+    "des",
+    "du",
+    "elle",
+    "elles",
+    "en",
+    "et",
+    "eux",
+    "il",
+    "ils",
+    "je",
+    "la",
+    "le",
+    "les",
+    "leur",
+    "lui",
+    "ma",
+    "mais",
+    "me",
+    "mes",
+    "moi",
+    "mon",
+    "ne",
+    "nos",
+    "notre",
+    "nous",
+    "on",
+    "ou",
+    "pour",
+    "qu",
+    "que",
+    "qui",
+    "sa",
+    "se",
+    "ses",
+    "son",
+    "sur",
+    "ta",
+    "te",
+    "tes",
+    "toi",
+    "ton",
+    "tu",
+    "un",
+    "une",
+    "vos",
+    "votre",
+    "vous",
+    "à",
+    "ça",
+    "où",
+}
+
+
+def _load_multilingual_stopwords() -> List[str]:
+    """Return a combined list of English and French stop words."""
+
+    combined: set[str] = set()
+    loaded_languages = {"english": False, "french": False}
+
+    for language in ("english", "french"):
+        try:
+            combined.update(stopwords.words(language))
+            loaded_languages[language] = True
+        except LookupError:
+            try:
+                nltk.download("stopwords", quiet=True)
+                combined.update(stopwords.words(language))
+                loaded_languages[language] = True
+            except Exception:
+                loaded_languages[language] = False
+
+    if not loaded_languages["english"]:
+        combined.update(ENGLISH_STOP_WORDS)
+    if not loaded_languages["french"]:
+        combined.update(FRENCH_FALLBACK_STOPWORDS)
+
+    return sorted(combined)
+
+
 class RevisionGenerator:
     """Generate revision sheets from a corpus."""
 
     def __init__(self) -> None:
-        self.vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
+        stop_words = _load_multilingual_stopwords()
+        self.vectorizer = TfidfVectorizer(stop_words=stop_words, max_features=5000)
         try:
             self.llm = LLMSummarizer()
         except Exception:  # pragma: no cover - defensive guard

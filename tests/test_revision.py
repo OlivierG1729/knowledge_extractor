@@ -140,3 +140,33 @@ def test_fallback_bullets_are_full_sentences(monkeypatch):
         assert bullet.startswith("- ")
         assert not bullet.endswith("…")
         assert bullet.rstrip().endswith((".", "!", "?"))
+
+
+def test_document_selection_handles_multilingual_stopwords():
+    generator = RevisionGenerator()
+
+    documents = [
+        {
+            "title": "Transition énergétique",
+            "text_content": (
+                "La transition énergétique et le climat exigent des politiques publiques "
+                "ambitieuses pour réduire les émissions et transformer les infrastructures."
+            ),
+        },
+        {
+            "title": "Renaissance artistique",
+            "text_content": (
+                "The renaissance art movement highlighted perspective, humanism, and the "
+                "rediscovery of classical knowledge across Europe."
+            ),
+        },
+    ]
+
+    french_theme = "La transition énergétique face au climat"
+    english_theme = "Humanism within the renaissance art perspective"
+
+    selected_french = generator.select_relevant_documents(french_theme, documents, max_docs=1)
+    assert selected_french and selected_french[0]["title"] == "Transition énergétique"
+
+    selected_english = generator.select_relevant_documents(english_theme, documents, max_docs=1)
+    assert selected_english and selected_english[0]["title"] == "Renaissance artistique"
