@@ -6,10 +6,11 @@ import random
 import re
 from dataclasses import dataclass
 from typing import List, Sequence
+
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from .summarization import summarise_documents
+from .llm_summarizer import LLMSummarizer
 
 
 @dataclass
@@ -46,6 +47,10 @@ class RevisionGenerator:
 
     def __init__(self) -> None:
         self.vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
+        try:
+            self.llm = LLMSummarizer()
+        except Exception:  # pragma: no cover - defensive guard
+            self.llm = None
 
     def select_relevant_documents(
         self, theme: str, documents: Sequence[dict], max_docs: int = 8
@@ -66,6 +71,27 @@ class RevisionGenerator:
         contents = [doc["text_content"] for doc in docs]
         if not contents:
             return []
+
+        llm_bullets: List[str] = []
+        if getattr(self, "llm", None):
+            try:
+                llm_bullets = self.llm.generate(theme, contents)
+            except Exception:
+                llm_bullets = []
+
+        cleaned_llm = [
+            bullet if bullet.startswith("- ") else f"- {bullet.lstrip('- ')}"
+            for bullet in llm_bullets
+            if bullet.strip()
+        ]
+        if 4 <= len(cleaned_llm) <= 6:
+            return cleaned_llm[:6]
+
+        return self._tfidf_synthesis(contents)
+
+    def _tfidf_synthesis(self, contents: Sequence[str]) -> List[str]:
+        from .summarization import summarise_documents
+
         summary = summarise_documents(contents, max_sentences=12).strip()
         if not summary:
             return []
@@ -90,8 +116,7 @@ class RevisionGenerator:
                 truncated = text[:limit]
             return f"{truncated}…"
 
-        bullet_points = [f"- {truncate(segment.rstrip('.;:'))}" for segment in cleaned_segments[:6]]
-        return bullet_points
+        return [f"- {truncate(segment.rstrip('.;:'))}" for segment in cleaned_segments[:6]]
 
     def extract_bibliographic_references(self, docs: Sequence[dict]) -> List[str]:
         references: List[str] = []
