@@ -13,14 +13,15 @@ from app.revision import RevisionGenerator, RevisionSheet
 def test_revision_sheet_markdown_contains_bullet_synthesis(monkeypatch):
     generator = RevisionGenerator()
 
-    def fake_summarise(doc_texts, max_sentences=12):  # pragma: no cover - simple stub
-        return (
-            "Phrase 1 sur le thème. Phrase 2 apporte un complément; une précision. "
-            "Phrase 3 souligne un autre point. Phrase 4 complète. Phrase 5 ajoute un exemple. "
-            "Phrase 6 conclut brièvement."
-        )
+    def fake_generate(self, theme, doc_snippets, **kwargs):  # pragma: no cover - stub
+        return [
+            "- Point clé 1 (Source A, 2023)",
+            "- Point clé 2 illustré par un exemple institutionnel",
+            "- Point clé 3 reliant deux documents",
+            "- Point clé 4 ouvrant sur un débat académique",
+        ]
 
-    monkeypatch.setattr("app.revision.summarise_documents", fake_summarise)
+    monkeypatch.setattr("app.llm_summarizer.LLMSummarizer.generate", fake_generate)
 
     documents = [
         {
@@ -58,10 +59,15 @@ def test_revision_sheet_markdown_fallback():
 def test_bibliography_section_shows_concise_entries(monkeypatch):
     generator = RevisionGenerator()
 
-    def fake_summarise(doc_texts, max_sentences=12):
-        return "Première phrase. Deuxième phrase informative."
+    def fake_generate(self, theme, doc_snippets, **kwargs):
+        return [
+            "- Point clé 1 (Source A, 2023)",
+            "- Point clé 2 illustré par un exemple institutionnel",
+            "- Point clé 3 reliant deux documents",
+            "- Point clé 4 ouvrant sur un débat académique",
+        ]
 
-    monkeypatch.setattr("app.revision.summarise_documents", fake_summarise)
+    monkeypatch.setattr("app.llm_summarizer.LLMSummarizer.generate", fake_generate)
 
     def fake_external(self, theme, limit=3):
         return [f"{theme} — Encyclopædia Universalis"]
