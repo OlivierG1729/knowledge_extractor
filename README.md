@@ -24,6 +24,14 @@ streamlit run streamlit_app.py
 - Création de fiches de révision structurées en quatre sections, exportées en PDF et mises à jour lorsque le corpus évolue.
 - Génération de rapports CSV listant les fiches de révision et les résumés disponibles.
 
+## Considérations linguistiques
+
+- La sélection de documents pertinents utilise un vocabulaire filtré qui fusionne les stopwords anglais et français fournis par
+  NLTK. En l'absence des corpus téléchargés, des listes de secours sont appliquées pour éviter de favoriser un seul ensemble
+  linguistique.
+- Pour intégrer d'autres langues, ajoutez les listes de mots vides correspondantes lors du prétraitement (via NLTK ou des listes
+  dédiées) afin d'équilibrer la pondération TF-IDF lors de l'ingestion.
+
 ## Polices PDF intégrées
 
 Les exports PDF utilisent la police Unicode **DejaVu Sans** pour éviter les erreurs
