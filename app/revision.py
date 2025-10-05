@@ -15,13 +15,17 @@ from .summarization import summarise_documents
 @dataclass
 class RevisionSheet:
     theme: str
-    synthesis: str
+    synthesis: List[str]
     sources: List[str]
     bibliography: List[str]
     essay_topics: List[str]
 
     def to_markdown(self) -> str:
-        lines = [f"# {self.theme}", "", "## 1. Synthèse", self.synthesis or "(Synthèse indisponible)"]
+        lines = [f"# {self.theme}", "", "## 1. Synthèse"]
+        if self.synthesis:
+            lines.extend(self.synthesis)
+        else:
+            lines.append("(Synthèse indisponible)")
         lines.extend(["", "## 2. Sources du corpus"])
         if self.sources:
             lines.extend([f"- {source}" for source in self.sources])
@@ -58,12 +62,36 @@ class RevisionGenerator:
         selected_indices = [index for index, score in ranked[:max_docs] if score > 0]
         return [documents[i] for i in selected_indices]
 
-    def build_synthesis(self, theme: str, docs: Sequence[dict]) -> str:
+    def build_synthesis(self, theme: str, docs: Sequence[dict]) -> List[str]:
         contents = [doc["text_content"] for doc in docs]
         if not contents:
-            return ""
-        summary = summarise_documents(contents, max_sentences=12)
-        return summary or f"Aucune synthèse disponible pour {theme}."
+            return []
+        summary = summarise_documents(contents, max_sentences=12).strip()
+        if not summary:
+            return []
+
+        segments = re.split(r"(?<=[.!?])\s+|\n+", summary)
+        cleaned_segments = [segment.strip(" -•\t") for segment in segments if segment.strip(" -•\t")]
+        if len(cleaned_segments) < 4:
+            expanded: List[str] = []
+            for segment in cleaned_segments:
+                parts = [part.strip(" -•\t") for part in re.split(r"[;:]", segment) if part.strip(" -•\t")]
+                if len(parts) > 1:
+                    expanded.extend(parts)
+                else:
+                    expanded.append(segment)
+            cleaned_segments = expanded
+
+        def truncate(text: str, limit: int = 160) -> str:
+            if len(text) <= limit:
+                return text
+            truncated = text[:limit].rsplit(" ", 1)[0]
+            if not truncated:
+                truncated = text[:limit]
+            return f"{truncated}…"
+
+        bullet_points = [f"- {truncate(segment.rstrip('.;:'))}" for segment in cleaned_segments[:6]]
+        return bullet_points
 
     def extract_bibliographic_references(self, docs: Sequence[dict]) -> List[str]:
         references: List[str] = []
